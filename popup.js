@@ -18,20 +18,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const toast = document.getElementById('toast');
     const viewProfilesBtn = document.getElementById('viewProfilesBtn');
 
-    const API_BASE = 'https://linkedinscrap-e4dpdhcuc7fgd7fk.eastasia-01.azurewebsites.net/api';
+    // Tag elements
+    const tagInput = document.getElementById('tagInput');
+    const addTagBtn = document.getElementById('addTagBtn');
+    const tagsContainer = document.getElementById('tagsContainer');
+    const popularTagsContainer = document.getElementById('popularTagsContainer');
+
+    const API_BASE = 'http://localhost:8080/api';
+    // const API_BASE = 'https://linkedinscrap-e4dpdhcuc7fgd7fk.eastasia-01.azurewebsites.net/api';
     const PROFILES_VIEWER_URL = 'https://linkedin-data-viewer.onrender.com/';
+
+    // Tag management
+    let selectedTags = [];
+    let popularTags = [];
+    let authToken = localStorage.getItem('linkedin_scraper_token');
 
     // Initialize
     checkAuthStatus();
 
     function checkAuthStatus() {
         const username = localStorage.getItem('linkedin_scraper_username');
-        if (username) {
+        authToken = localStorage.getItem('linkedin_scraper_token');
+
+        if (username && authToken) {
             showMainSection(username);
+            loadPopularTags();
             checkPageStatus();
         } else {
             showAuthSection();
         }
+    }
+
+    function clearAuthData() {
+        localStorage.removeItem('linkedin_scraper_username');
+        localStorage.removeItem('linkedin_scraper_token');
+        authToken = null;
     }
 
     function showAuthSection() {
@@ -45,22 +66,187 @@ document.addEventListener('DOMContentLoaded', () => {
         mainSection.classList.add('active');
         userName.textContent = username;
         userAvatar.textContent = username.charAt(0).toUpperCase();
-        sendUsernameToContentScript(username);
+        selectedTags = []; // Reset tags for new session
+        updateTagsDisplay();
+        sendTokenToContentScript(authToken, username);
     }
 
-    async function sendUsernameToContentScript(username) {
+    async function sendTokenToContentScript(token, username) {
         try {
             const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
             if (tab && tab.url && tab.url.includes('linkedin.com/in/')) {
                 chrome.tabs.sendMessage(tab.id, {
-                    action: 'setUsername',
+                    action: 'setAuthData',
+                    token: token,
                     username: username
                 });
             }
         } catch (error) {
-            console.warn('Error sending username:', error);
+            console.warn('Error sending auth data:', error);
         }
     }
+
+    // Load popular tags from server with auth error handling
+    async function loadPopularTags() {
+        if (!authToken) return;
+        try {
+            const response = await fetch(`${API_BASE}/tags`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                // Auth failed, redirect to login
+                clearAuthData();
+                showAuthSection();
+                showToast('Session expired. Please login again.', 'warning');
+                return;
+            }
+
+            if (response.ok) {
+                const tags = await response.json();
+                popularTags = tags.slice(0, 10); // Show top 10
+                updatePopularTagsDisplay();
+            }
+        } catch (error) {
+            console.warn('Failed to load popular tags:', error);
+        }
+    }
+
+    // Update popular tags display
+    function updatePopularTagsDisplay() {
+        popularTagsContainer.innerHTML = '';
+        if (popularTags.length === 0) {
+            popularTagsContainer.innerHTML = 'No popular tags yet';
+            return;
+        }
+
+        popularTags.forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'popular-tag';
+            tagElement.textContent = tag.name;
+            tagElement.style.backgroundColor = tag.color + '20';
+            tagElement.style.borderColor = tag.color;
+            tagElement.addEventListener('click', () => {
+                addTag(tag.name, tag.color);
+            });
+            popularTagsContainer.appendChild(tagElement);
+        });
+    }
+
+    // Add tag function
+    function addTag(tagName, tagColor = '#0a66c2') {
+        const trimmedTag = tagName.trim();
+        if (!trimmedTag || trimmedTag.length > 50) {
+            showToast('Tag must be 1-50 characters', 'error');
+            return;
+        }
+
+        // Check if tag already exists
+        if (selectedTags.some(tag => tag.name.toLowerCase() === trimmedTag.toLowerCase())) {
+            showToast('Tag already added', 'warning');
+            return;
+        }
+
+        if (selectedTags.length >= 10) {
+            showToast('Maximum 10 tags allowed', 'warning');
+            return;
+        }
+
+        selectedTags.push({
+            name: trimmedTag,
+            color: tagColor
+        });
+        updateTagsDisplay();
+        tagInput.value = '';
+        // Save to server for popular tags
+        saveTagToServer(trimmedTag, tagColor);
+    }
+
+    // Save tag to server with auth error handling
+    async function saveTagToServer(tagName, tagColor) {
+        if (!authToken) return;
+        try {
+            const response = await fetch(`${API_BASE}/tags`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    name: tagName,
+                    color: tagColor
+                })
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                // Auth failed, redirect to login
+                clearAuthData();
+                showAuthSection();
+                showToast('Session expired. Please login again.', 'warning');
+                return;
+            }
+        } catch (error) {
+            console.warn('Failed to save tag:', error);
+        }
+    }
+
+    // Remove tag function
+    function removeTag(index) {
+        selectedTags.splice(index, 1);
+        updateTagsDisplay();
+    }
+
+    // Update tags display
+    function updateTagsDisplay() {
+        tagsContainer.innerHTML = '';
+        if (selectedTags.length === 0) {
+            tagsContainer.innerHTML = '';
+            return;
+        }
+
+        selectedTags.forEach((tag, index) => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag selected';
+            tagElement.style.backgroundColor = tag.color;
+            tagElement.innerHTML = `
+                ${tag.name}
+                <span class="remove-tag">×</span>
+            `;
+            tagElement.querySelector('.remove-tag').addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeTag(index);
+            });
+            tagsContainer.appendChild(tagElement);
+        });
+    }
+
+    // Tag input events
+    addTagBtn.addEventListener('click', () => {
+        const tagName = tagInput.value.trim();
+        if (tagName) {
+            addTag(tagName);
+        }
+    });
+
+    tagInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const tagName = tagInput.value.trim();
+            if (tagName) {
+                addTag(tagName);
+            }
+        }
+    });
+
+    tagInput.addEventListener('input', (e) => {
+        const value = e.target.value;
+        if (value.length > 50) {
+            e.target.value = value.substring(0, 50);
+            showToast('Tag limited to 50 characters', 'warning');
+        }
+    });
 
     // Tab switching
     loginTab.addEventListener('click', () => switchTab('login'));
@@ -94,15 +280,24 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(`${API_BASE}/login`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username, password})
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username,
+                    password
+                })
             });
 
             const data = await response.json();
             if (response.ok) {
+                // Store both username and token
                 localStorage.setItem('linkedin_scraper_username', data.username);
+                localStorage.setItem('linkedin_scraper_token', data.token);
+                authToken = data.token;
                 showMainSection(data.username);
                 showToast('Welcome back!', 'success');
+                loadPopularTags();
                 checkPageStatus();
             } else {
                 showToast(data.error || 'Login failed', 'error');
@@ -133,16 +328,40 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(`${API_BASE}/register`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username, password})
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username,
+                    password
+                })
             });
 
             const data = await response.json();
             if (response.ok) {
-                localStorage.setItem('linkedin_scraper_username', data.username);
-                showMainSection(data.username);
-                showToast('Account created successfully!', 'success');
-                checkPageStatus();
+                // Auto login after registration
+                const loginResponse = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        password
+                    })
+                });
+
+                const loginData = await loginResponse.json();
+                if (loginResponse.ok) {
+                    // Store both username and token
+                    localStorage.setItem('linkedin_scraper_username', loginData.username);
+                    localStorage.setItem('linkedin_scraper_token', loginData.token);
+                    authToken = loginData.token;
+                    showMainSection(loginData.username);
+                    showToast('Account created successfully!', 'success');
+                    loadPopularTags();
+                    checkPageStatus();
+                }
             } else {
                 showToast(data.error || 'Registration failed', 'error');
             }
@@ -155,31 +374,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Logout
     logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('linkedin_scraper_username');
+        clearAuthData();
+        selectedTags = [];
         showAuthSection();
         showToast('Signed out successfully', 'success');
     });
 
-    // Extract profile
+    // Extract profile with tags and token
     extractBtn.addEventListener('click', async () => {
         const username = localStorage.getItem('linkedin_scraper_username');
-        if (!username) {
+        const token = localStorage.getItem('linkedin_scraper_token');
+
+        if (!username || !token) {
             showToast('Please sign in first', 'error');
             return;
         }
 
         setButtonLoading(extractBtn, true, 'Extracting...');
         updateStatus('Processing profile...', 'warning');
-        
+
         try {
             const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
             chrome.tabs.sendMessage(tab.id, {
                 action: 'scrapeProfile',
                 sessionId: Date.now().toString(36) + Math.random().toString(36).substr(2),
                 userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                username: username
+                username: username,
+                token: token,
+                tags: selectedTags
             });
-            
+
             showToast('Extraction started...', 'success');
             setTimeout(() => window.close(), 800);
         } catch (error) {
@@ -192,7 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // View saved profiles
     viewProfilesBtn.addEventListener('click', () => {
-        chrome.tabs.create({ url: PROFILES_VIEWER_URL });
+        chrome.tabs.create({
+            url: PROFILES_VIEWER_URL
+        });
         showToast('Opening profile viewer...', 'success');
         setTimeout(() => window.close(), 500);
     });
@@ -233,8 +459,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateStatus('Ready to extract', 'success');
                 extractBtn.disabled = false;
                 const username = localStorage.getItem('linkedin_scraper_username');
-                if (username) {
-                    setTimeout(() => sendUsernameToContentScript(username), 1000);
+                const token = localStorage.getItem('linkedin_scraper_token');
+                if (username && token) {
+                    setTimeout(() => sendTokenToContentScript(token, username), 1000);
                 }
             }
         });
@@ -264,12 +491,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function showToast(text, type) {
         toast.textContent = text;
         toast.className = `toast ${type} show`;
-        
-        // Hide after 1 second as requested
         setTimeout(() => {
             toast.classList.remove('show');
-        }, 1000);
+        }, 3000);
     }
+
+    // Listen for redirect to login messages from content script
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'redirectToLogin') {
+            clearAuthData();
+            selectedTags = [];
+            showAuthSection();
+            showToast('Session expired. Please login again.', 'warning');
+        }
+    });
 
     // Enter key support
     document.addEventListener('keypress', (e) => {
