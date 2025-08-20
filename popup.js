@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusText = document.getElementById('statusText');
     const toast = document.getElementById('toast');
     const viewProfilesBtn = document.getElementById('viewProfilesBtn');
+    const shortcutKey = document.getElementById('shortcutKey');
 
     // Tag elements
     const tagInput = document.getElementById('tagInput');
@@ -24,8 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagsContainer = document.getElementById('tagsContainer');
     const popularTagsContainer = document.getElementById('popularTagsContainer');
 
-    const API_BASE = 'http://localhost:8080/api';
-    // const API_BASE = 'https://linkedinscrap-e4dpdhcuc7fgd7fk.eastasia-01.azurewebsites.net/api';
+    // const API_BASE = 'http://localhost:8080/api';
+    const API_BASE = 'https://linkedinscrap-e4dpdhcuc7fgd7fk.eastasia-01.azurewebsites.net/api';
     const PROFILES_VIEWER_URL = 'https://linkedin-data-viewer.onrender.com/';
 
     // Tag management
@@ -35,10 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Detect system for keyboard shortcut display
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const shortcutKey = isMac ? '⌘⇧S' : 'Ctrl+Shift+S';
+    const shortcutKeyText = isMac ? 'Cmd+Shift+S' : 'Ctrl+Shift+S';
+    
+    // Set keyboard shortcut in footer
+    shortcutKey.textContent = shortcutKeyText;
     
     // Set hover tooltip for extract button
-    extractBtn.title = `Extract Profile (${shortcutKey})`;
+    extractBtn.title = `Extract Profile (${shortcutKeyText})`;
 
     // Initialize
     checkAuthStatus();
@@ -592,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
             button.disabled = false;
             button.classList.remove('loading');
             if (button === extractBtn) {
-                extractText.textContent = 'Extract Profile';
+                extractText.textContent = '🚀 Extract Profile';
             }
         }
     }

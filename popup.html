@@ -57,6 +57,7 @@
         /* Main Content */
         .container {
             padding: 17px;
+            padding-bottom: 0;
         }
 
         /* Auth Section */
@@ -473,6 +474,7 @@
             border-radius: 8px;
             border-left: 4px solid #e2e8f0;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 16px;
         }
 
         .status-indicator {
@@ -505,6 +507,28 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+
+        /* Keyboard Shortcut Footer */
+        .keyboard-shortcut-footer {
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 8px 17px;
+            text-align: center;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 0;
+        }
+
+        .keyboard-shortcut-footer .shortcut-key {
+            background: #e2e8f0;
+            color: #475569;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
         }
 
         /* Toast */
@@ -645,6 +669,11 @@
                 <div id="statusText" class="status-text">Ready to extract</div>
             </div>
         </div>
+    </div>
+
+    <!-- Keyboard Shortcut Footer -->
+    <div class="keyboard-shortcut-footer">
+        Quick extract: <span id="shortcutKey" class="shortcut-key">Ctrl+Shift+S</span>
     </div>
 
     <div id="toast" class="toast"></div>

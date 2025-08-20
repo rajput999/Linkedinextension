@@ -1,7 +1,7 @@
 // content.js - Enhanced LinkedIn Profile Extractor with Immediate Processing
 
-const API_BASE = 'http://localhost:8080/api';
-// const API_BASE = 'https://linkedinscrap-e4dpdhcuc7fgd7fk.eastasia-01.azurewebsites.net/api';
+// const API_BASE = 'http://localhost:8080/api';
+const API_BASE = 'https://linkedinscrap-e4dpdhcuc7fgd7fk.eastasia-01.azurewebsites.net/api';
 
 class LinkedInExtractor {
     constructor(sessionId, userAgent) {
